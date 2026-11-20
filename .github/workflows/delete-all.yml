@@ -1,35 +1,26 @@
 
-name: Delete Files
+name: Delete All Repository Files
 
 on:
   workflow_dispatch:
-    inputs:
-      file_path:
-        description: 'File or folder path to delete'
-        required: true
-        type: string
 
 permissions:
   contents: write
 
 jobs:
-  delete:
+  delete-all:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Delete File
+      - name: Delete All Files
         run: |
-          TARGET="${{ inputs.file_path }}"
-
-          if [ -z "$TARGET" ] || [ "$TARGET" = "." ] || [ "$TARGET" = "/" ]; then
-            echo "Invalid path"
-            exit 1
-          fi
-
-          rm -rf -- "$TARGET"
+          find . -mindepth 1 \
+            -not -path './.git*' \
+            -not -path './.github/workflows/delete-all.yml' \
+            -delete
 
       - name: Commit Changes
         run: |
@@ -39,6 +30,6 @@ jobs:
           git add -A
           git diff --cached --quiet && exit 0
 
-          git commit -m "Delete selected file or folder"
+          git commit -m "Delete all repository files"
           git push
           
