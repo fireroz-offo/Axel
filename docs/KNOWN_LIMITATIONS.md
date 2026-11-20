@@ -1,0 +1,7 @@
+# Known Limitations (this build: Phase 1-4)
+- Not built/typechecked in the authoring sandbox (no npm registry access). First GitHub Actions run is the first real build; check the Actions log.
+- Competitor research, topic AI, script, voiceover, storyboard, motion engines, final render are NOT implemented yet (see phases).
+- Research sources are keyless public APIs only; GDELT may rate-limit.
+- Wikipedia trending is global, not filtered by category.
+- Only the Lab render test produces an MP4; it is a test animation, not a user video.
+- coi-sw.js service worker needs HTTPS (GitHub Pages is fine) and one reload on first visit.
