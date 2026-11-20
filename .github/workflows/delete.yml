@@ -1,0 +1,44 @@
+
+name: Delete Files
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_path:
+        description: 'File or folder path to delete'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Delete File
+        run: |
+          TARGET="${{ inputs.file_path }}"
+
+          if [ -z "$TARGET" ] || [ "$TARGET" = "." ] || [ "$TARGET" = "/" ]; then
+            echo "Invalid path"
+            exit 1
+          fi
+
+          rm -rf -- "$TARGET"
+
+      - name: Commit Changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git diff --cached --quiet && exit 0
+
+          git commit -m "Delete selected file or folder"
+          git push
+          
