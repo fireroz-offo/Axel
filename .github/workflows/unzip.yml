@@ -1,0 +1,108 @@
+
+name: Unzip Uploaded Project ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.zip'
+
+  workflow_dispatch:
+    inputs:
+      zip_name:
+        description: 'ZIP file name in repo root'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: unzip
+  cancel-in-progress: false
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Find ZIP
+        id: find
+        shell: bash
+        run: |
+          Z="${{ github.event.inputs.zip_name }}"
+
+          if [ -z "$Z" ]; then
+            Z=$(find . -maxdepth 1 -name '*.zip' -printf '%f\n' | head -n1)
+          fi
+
+          if [ -z "$Z" ] || [ ! -f "$Z" ]; then
+            echo "No ZIP found"
+            echo "found=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "found=yes" >> "$GITHUB_OUTPUT"
+          echo "zip=$Z" >> "$GITHUB_OUTPUT"
+
+      - name: Extract ZIP
+        if: steps.find.outputs.found == 'yes'
+        shell: bash
+        run: |
+          set -e
+
+          Z="${{ steps.find.outputs.zip }}"
+
+          rm -rf /tmp/unz
+          mkdir -p /tmp/unz
+
+          unzip -q -o "$Z" -d /tmp/unz
+
+          rm -rf /tmp/unz/__MACOSX
+
+          COUNT=$(find /tmp/unz -mindepth 1 -maxdepth 1 | wc -l)
+
+          if [ "$COUNT" -eq 1 ] && [ -d "/tmp/unz/$(ls -A /tmp/unz)" ]; then
+            SRC="/tmp/unz/$(ls -A /tmp/unz)"
+          else
+            SRC="/tmp/unz"
+          fi
+
+          test -f "$SRC/package.json" || {
+            echo "package.json not found"
+            exit 1
+          }
+
+          rm -rf src public docs
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            "$SRC"/ ./
+
+          rm -f "$Z"
+
+      - name: Commit Changes
+        if: steps.find.outputs.found == 'yes'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          git diff --cached --quiet && exit 0
+
+          git commit -m "Auto extract uploaded ZIP"
+          git push
+
+      - name: Trigger Build
+        if: steps.find.outputs.found == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build.yml --ref "${{ github.ref_name }}"
+          
