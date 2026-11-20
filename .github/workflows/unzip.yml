@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       zip_name:
-        description: 'ZIP file name in repo root'
+        description: 'ZIP file name in repo root (leave empty = first ZIP found)'
         required: false
         default: ''
 
@@ -32,12 +32,10 @@ jobs:
 
       - name: Find ZIP
         id: find
-        shell: bash
         run: |
           Z="${{ github.event.inputs.zip_name }}"
-
           if [ -z "$Z" ]; then
-            Z=$(find . -maxdepth 1 -name '*.zip' -printf '%f\n' | head -n1)
+            Z=$(ls -1 *.zip 2>/dev/null | head -n1 || true)
           fi
 
           if [ -z "$Z" ] || [ ! -f "$Z" ]; then
@@ -51,7 +49,6 @@ jobs:
 
       - name: Extract ZIP
         if: steps.find.outputs.found == 'yes'
-        shell: bash
         run: |
           set -e
 
@@ -61,10 +58,9 @@ jobs:
           mkdir -p /tmp/unz
 
           unzip -q -o "$Z" -d /tmp/unz
-
           rm -rf /tmp/unz/__MACOSX
 
-          COUNT=$(find /tmp/unz -mindepth 1 -maxdepth 1 | wc -l)
+          COUNT=$(ls -A /tmp/unz | wc -l)
 
           if [ "$COUNT" -eq 1 ] && [ -d "/tmp/unz/$(ls -A /tmp/unz)" ]; then
             SRC="/tmp/unz/$(ls -A /tmp/unz)"
@@ -96,13 +92,14 @@ jobs:
 
           git diff --cached --quiet && exit 0
 
-          git commit -m "Auto extract uploaded ZIP"
+          git commit -m "Auto unzip project ZIP"
           git push
 
-      - name: Trigger Build
+      - name: Trigger Build and APK
         if: steps.find.outputs.found == 'yes'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run build.yml --ref "${{ github.ref_name }}"
+          gh workflow run apk.yml --ref "${{ github.ref_name }}"
           
