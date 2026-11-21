@@ -1,13 +1,16 @@
 
 name: Build Web (dist)
 
-# Web build + downloadable ZIP
+# Web build + downloadable dist ZIP
 on:
   push:
     branches: [main]
     paths-ignore:
       - '**.zip'
   workflow_dispatch:
+
+env:
+  NPM_CONFIG_IGNORE_SCRIPTS: 'true'
 
 permissions:
   contents: read
@@ -17,30 +20,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
 
-      - name: Type Check
+      - name: Type check
         run: npm run typecheck
         continue-on-error: true
 
-      - name: Build Project
+      - name: Build project
         run: npm run build
 
       - name: Create ZIP
         run: cd dist && zip -qr ../divriz-ai-dist.zip .
 
-      - name: Upload Build Artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: divriz-ai-dist
-          path: divriz-ai-dist.zip
-          
+          path: divriz-
+          ai-dist.zip
