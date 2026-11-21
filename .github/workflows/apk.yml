@@ -1,12 +1,14 @@
 
 name: Build Android APK
 
-# Actions > Build Android APK > Run workflow
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths-ignore: ['**.zip']
+
+env:
+  NPM_CONFIG_IGNORE_SCRIPTS: 'true'
 
 permissions:
   contents: write
@@ -29,7 +31,7 @@ jobs:
           java-version: 17
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
       - name: Build web app
         run: npm run build
@@ -37,13 +39,10 @@ jobs:
       - name: Create Android project (Capacitor)
         run: |
           npx cap add android
-
           D=android/app/src/main/java/com/divriz/ai
           mkdir -p "$D"
           cp native/android/*.java "$D/"
-
           sed -i '/android.permission.INTERNET/a <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />' android/app/src/main/AndroidManifest.xml || true
-
           npx cap sync android
 
       - name: Build debug APK
@@ -68,5 +67,5 @@ jobs:
           gh release create "apk-${{ github.run_number }}" divriz-ai-debug.apk \
             --target "${{ github.sha }}" \
             --title "DIVRIZ AI APK #${{ github.run_number }}" \
-            --notes "Debug APK. Install karne ke liye phone me 'Install unknown apps' allow karein."
-            
+            --notes "Debug APK. Install karne ke liye phone me 'Install unknown apps' 
+            allow karein."
