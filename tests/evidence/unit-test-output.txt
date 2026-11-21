@@ -1,0 +1,26 @@
+sentences 9
+0 क्या आप जानते हैं कि पैसा समय के साथ खुद बढ़ता है?
+1 चक्रवृद्धि ब्याज को दुनिया का आठवाँ अजूबा कहा जाता है।
+2 अगर आप 10,000 रुपये हर साल 12% ब्याज पर लगाएँ तो 10 साल में 
+3 2000 में एक निवेशक ने शुरुआत की, और 2020 में उसकी रकम 40 गुन
+4 पहले बचत करें, फिर निवेश करें, और अंत में धैर्य रखें।
+5 सेंसेक्स 1000, 5000 और 20000 अंकों तक पहुँचा।
+6 लोग कहते हैं "जल्दी शुरू करो, देर मत करो"।
+7 जबकि बचत खाता 3% देता है, म्यूचुअल फंड 12% तक दे सकता है।
+8 यही कारण है कि शुरुआत जल्दी करना सबसे ज़रूरी है।
+silences 10 speech 0.30 36.70
+max boundary error (s) 0.01 flags []
+first 0 last end 40.00
+0 title | हुक: पहला scene बड़ा title | {"text":"चक्रवृद्धि ब्याज"}
+1 line | script में मिला: line | {"values":[],"synthetic":true,"dir":"up","label":"चक्रवृद्धि"}
+2 stat | script में मिला: stat | {"value":12,"prefix":"","suffix":"%","unit":"%","label":"अगर आप 10,000 रुपये हर साल 12% ब्
+3 timeline | script में मिला: timeline | {"events":[{"year":2000,"label":"एक निवेशक ने"},{"year":2020,"label":"उसकी रकम 40"}]}
+4 steps | script में मिला: steps | {"items":["पहले बचत करें","निवेश करें","अंत में धैर्य रखें"]}
+5 bars | script में मिला: bars | {"values":[1000,5000,20000],"labels":["सेंसेक्स","B","C"],"prefix":"","suffix":"","title":
+6 quote | script में मिला: quote | {"text":"जल्दी शुरू करो, देर मत करो"}
+7 bars | script में मिला: bars | {"values":[3,12],"labels":["खाता","फंड"],"prefix":"","suffix":"%","title":"म्यूचुअल"}
+8 end | conclusion: closing card | {"text":"यही कारण है कि शुरुआत जल्दी करना सबसे ज़रूरी है।"}
+deterministic true
+llm parsed [ [ 1, 'stat' ], [ 3, 'timeline' ] ]
+llm garbage 0
+mock render calls 742741 bad 0
