@@ -1,12 +1,13 @@
 
 name: Build Web (dist)
 
-# Web build + downloadable dist ZIP
+# Sirf web build + downloadable dist ZIP.
+# GitHub Pages ki zarurat nahi.
+
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**.zip'
+    paths-ignore: ['**.zip']
   workflow_dispatch:
 
 env:
@@ -26,22 +27,18 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --ignore-scripts
+      - run: npm install --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
-      - name: Type check
+      - name: Type check (informational)
         run: npm run typecheck
         continue-on-error: true
 
-      - name: Build project
-        run: npm run build
+      - run: npm run build
 
-      - name: Create ZIP
-        run: cd dist && zip -qr ../divriz-ai-dist.zip .
+      - run: cd dist && zip -qr ../divriz-ai-dist.zip .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: divriz-ai-dist
-          path: divriz-
-          ai-dist.zip
+          path: divriz
+          -ai-dist.zip
