@@ -1,0 +1,87 @@
+// Real MP4 export: canvas frames (same renderFrame as the preview) -> WebCodecs H.264 + the user's own voiceover -> AAC -> mp4-muxer.
+// 720p max by design. Backpressure keeps memory flat; cancel + progress supported.
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { renderFrame, type Theme } from '../motion/engine';
+import type { SceneSpec } from '../brain/plan';
+
+export type Aspect = '16:9' | '9:16' | '1:1';
+export const SIZES: Record<Aspect, [number, number]> = { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720] };
+export interface RenderJob {
+  scenes: SceneSpec[]; theme: Theme; aspect: Aspect; fps: 24 | 30; duration: number; captions: boolean;
+  audio: Float32Array | null; sampleRate: number; signal?: AbortSignal; onProgress: (p: number, stage: string) => void;
+}
+export interface RenderOut { blob: Blob; ms: number; frames: number; audio: boolean; note: string; width: number; height: number }
+
+export function supportsEncoding(): boolean { return typeof (window as any).VideoEncoder !== 'undefined' && typeof (window as any).VideoFrame !== 'undefined'; }
+
+export async function decodeAudioFile(file: Blob, sr = 48000): Promise<{ samples: Float32Array; sampleRate: number; duration: number }> {
+  const buf = await file.arrayBuffer();
+  const ctx = new OfflineAudioContext(1, 1, sr);
+  const ab = await ctx.decodeAudioData(buf); // resamples to sr
+  const ch = ab.numberOfChannels, n = ab.length, out = new Float32Array(n);
+  for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) out[i] += d[i] / ch; }
+  return { samples: out, sampleRate: ab.sampleRate, duration: ab.duration };
+}
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+export async function renderVideo(job: RenderJob): Promise<RenderOut> {
+  const W = window as any;
+  if (!supportsEncoding()) throw new Error('Is browser mein WebCodecs (VideoEncoder) nahi hai. Android Chrome (latest) use karein.');
+  const t0 = performance.now(), [width, height] = SIZES[job.aspect], fps = job.fps;
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d', { alpha: false })!;
+
+  const vcfg = { codec: width * height > 1280 * 720 ? 'avc1.640028' : 'avc1.4d001f', width, height, bitrate: Math.round(width * height * fps * 0.09), framerate: fps };
+  const vs = await W.VideoEncoder.isConfigSupported(vcfg);
+  if (!vs.supported) throw new Error('H.264 encoder is device par supported nahi hai.');
+
+  // AAC first (plays everywhere). If the device has no AAC encoder, fall back to Opus-in-MP4 instead of a silent video.
+  let audioOn = false, note = 'H.264', acodec: 'aac' | 'opus' = 'aac';
+  let acfg: any = { codec: 'mp4a.40.2', sampleRate: job.sampleRate, numberOfChannels: 1, bitrate: 128000 };
+  if (job.audio && W.AudioEncoder) {
+    audioOn = !!(await W.AudioEncoder.isConfigSupported(acfg)).supported;
+    if (!audioOn) {
+      const oc = { codec: 'opus', sampleRate: 48000, numberOfChannels: 1, bitrate: 96000 };
+      if (job.sampleRate === 48000 && (await W.AudioEncoder.isConfigSupported(oc)).supported) { acfg = oc; acodec = 'opus'; audioOn = true; }
+    }
+  }
+  if (job.audio && !audioOn) note = 'Is device par AAC/Opus audio encoder nahi mila: video bina audio ke bana.';
+  else if (audioOn) note = acodec === 'aac' ? 'H.264 + AAC' : 'H.264 + Opus (is device par AAC nahi tha; kuch purane players Opus nahi chalate)';
+
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({ target, video: { codec: 'avc', width, height }, ...(audioOn ? { audio: { codec: acodec, numberOfChannels: 1, sampleRate: job.sampleRate } } : {}), fastStart: 'in-memory' });
+  let err: Error | null = null;
+  const venc = new W.VideoEncoder({ output: (c: any, m: any) => muxer.addVideoChunk(c, m), error: (e: Error) => { err = e; } });
+  venc.configure(vcfg);
+
+  const total = Math.max(1, Math.round(job.duration * fps));
+  for (let i = 0; i < total; i++) {
+    if (job.signal?.aborted) { venc.close(); throw new Error('Render cancel ho gaya.'); }
+    if (err) throw err;
+    renderFrame(ctx, width, height, job.scenes, i / fps, job.theme, { captions: job.captions });
+    const f = new W.VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
+    venc.encode(f, { keyFrame: i % (fps * 2) === 0 }); f.close();
+    while (venc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 3));
+    if (i % 6 === 0) { job.onProgress((i / total) * (audioOn ? 0.9 : 1), 'video'); await tick(); }
+  }
+  await venc.flush(); venc.close();
+
+  if (audioOn && job.audio) {
+    const aenc = new W.AudioEncoder({ output: (c: any, m: any) => muxer.addAudioChunk(c, m), error: (e: Error) => { err = e; } });
+    aenc.configure(acfg);
+    const sr = job.sampleRate, CH = 4096, totalS = Math.min(job.audio.length, Math.ceil(job.duration * sr));
+    for (let off = 0; off < totalS; off += CH) {
+      if (job.signal?.aborted) { aenc.close(); throw new Error('Render cancel ho gaya.'); }
+      const n = Math.min(CH, totalS - off), chunk = job.audio.slice(off, off + n);
+      const ad = new W.AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 1, timestamp: Math.round((off / sr) * 1e6), data: chunk });
+      aenc.encode(ad); ad.close();
+      while (aenc.encodeQueueSize > 16) await new Promise((r) => setTimeout(r, 2));
+      if ((off / CH) % 40 === 0) { job.onProgress(0.9 + 0.1 * (off / totalS), 'audio'); await tick(); }
+    }
+    await aenc.flush(); aenc.close();
+  }
+  if (err) throw err;
+  muxer.finalize(); job.onProgress(1, 'done');
+  return { blob: new Blob([target.buffer], { type: 'video/mp4' }), ms: performance.now() - t0, frames: total, audio: audioOn, note, width, height };
+}
