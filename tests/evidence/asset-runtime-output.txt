@@ -1,0 +1,71 @@
+{
+ "ms": 316,
+ "bundle": {
+  "entry": "pack/index.html",
+  "external": [
+   "https://cdn.example.com/gsap.min.js"
+  ],
+  "missing": [],
+  "hasImgData": true,
+  "hasLink": false
+ },
+ "info": {
+  "libs": [],
+  "hasSeek": false,
+  "duration": 2,
+  "tags": [
+   "chart",
+   "bar",
+   "growth"
+  ],
+  "category": "finance",
+  "external": [
+   "https://cdn.example.com/gsap.min.js"
+  ],
+  "warnings": [
+   "1 network link hataye gaye (offline/safe rehne ke liye): https://cdn.example.com/gsap.min.js"
+  ],
+  "usesCanvas": false,
+  "usesWebgl": false
+ },
+ "t0_boxPixel_x50": [
+  255,
+  0,
+  0,
+  255
+ ],
+ "t0_x450": [
+  17,
+  34,
+  51,
+  255
+ ],
+ "t1_x450": [
+  255,
+  0,
+  0,
+  255
+ ],
+ "t1_x50": [
+  17,
+  34,
+  51,
+  255
+ ],
+ "deterministic": true,
+ "iconPixel": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "size": [
+  640,
+  360
+ ],
+ "match": [
+  "title",
+  "asset",
+  "callout"
+ ]
+}
