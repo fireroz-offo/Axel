@@ -1,0 +1,8 @@
+6 topics, 10 real items se bane.
+1 0.64 explanation | RBI keeps repo rate unchanged at 5.5 percent | News coverage: 3 source · 1 provider | Bahut taaza (kal-aaj) · aaj
+2 0.55 explanation | Show HN: A tiny SIP calculator | News coverage: 1 source · 1 provider | Bahut taaza (kal-aaj) · kal
+3 0.49 explanation | Gold price hits record high as dollar weakens | News coverage: 2 source · 1 provider | Taaza (is hafte) · 2 din pehle
+4 0.38 explanation | Mutual fund SIP inflows touch new peak in October | News coverage: 1 source · 1 provider | Taaza (is hafte) · 3 din pehle
+5 0.20 explanation | Compound interest explained for new investors | News coverage: 1 source · 1 provider | Purana ho sakta hai · 20 din pehle
+6 0.20 documentary | Great Depression 1929 crash lessons history | News coverage: 1 source · 1 provider | Purana ho sakta hai · 30 din pehle
+TOPICS OK
