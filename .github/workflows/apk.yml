@@ -1,85 +1,137 @@
 
-name: Build Android APK
+name: Build DIVRIZ AI Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths-ignore: ['**.zip']
 
-env:
-  NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.zip'
+      - '**/*.md'
 
 permissions:
   contents: write
 
 concurrency:
-  group: apk-${{ github.ref }}
+  group: divriz-android-apk
   cancel-in-progress: true
 
 jobs:
   apk:
+    name: Build Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - name: Gradle cache
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('package.json') }}
-          restore-keys: gradle-${{ runner.os }}-
+          key: divriz-gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            divriz-gradle-${{ runner.os }}-
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
-      - name: Build web app
+      - name: Verify Capacitor
+        run: |
+          if [ ! -f capacitor.config.ts ] && \
+             [ ! -f capacitor.config.js ] && \
+             [ ! -f capacitor.config.json ]; then
+            echo "ERROR: Capacitor config missing."
+            exit 1
+          fi
+
+          npx cap --version
+
+      - name: Build Web Application
         run: npm run build
 
-      - name: Create Android project
+      - name: Verify Web Output
         run: |
-          npx cap add android
-          D=android/app/src/main/java/com/divriz/ai
-          mkdir -p "$D"
-          cp native/android/*.java "$D/"
-          M=android/app/src/main/AndroidManifest.xml
-          sed -i '/android.permission.INTERNET/a <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />' "$M" || true
-          sed -i 's/<application/<application android:largeHeap="true"/' "$M" || true
+          test -d dist
+          test -n "$(ls -A dist)"
+
+      - name: Setup Android Project
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
           npx cap sync android
 
-      - name: Build debug APK
+      - name: Configure Android App
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+
+          if [ -f "$MANIFEST" ]; then
+            if ! grep -q 'android:largeHeap="true"' "$MANIFEST"; then
+              sed -i 's/<application/<application android:largeHeap="true"/' "$MANIFEST"
+            fi
+          fi
+
+      - name: Build Debug APK
         working-directory: android
         run: |
-          chmod +x ./gradlew
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk divriz-ai-debug.apk
+      - name: Verify APK
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
 
-      - uses: actions/upload-artifact@v4
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
+          mkdir -p output
+          cp "$APK" output/DIVRIZ-AI.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: divriz-ai-apk
-          path: divriz-ai-debug.apk
+          name: DIVRIZ-AI-Android-APK
+          path: output/DIVRIZ-AI.apk
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Publish to Releases
-        continue-on-error: true
+      - name: Publish APK Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "apk-v1.0.0-${{ github.run_number }}" divriz-ai-debug.apk \
-            --target "${{ github.sha }}" \
-            --title "DIVRIZ AI v1.0.0 APK #${{ github.run_number }}" \
-            --notes "Debug APK. Install unknown apps permis
-            sion required."
+          TAG="divriz-ai-apk-${GITHUB_RUN_NUMBER}"
+
+          gh release create "$TAG" \
+            output/DIVRIZ-AI.apk \
+            --title "DIVRIZ AI Android APK #${GITHUB_RUN_NUMBER}" \
+            --notes "DIVRIZ AI Android Debug APK."
+            
