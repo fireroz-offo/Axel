@@ -1,86 +1,95 @@
 
-name: Extract DIVRIZ AI ZIP
+name: Unzip Source
 
 on:
+  push:
+    branches: [main, master]
+    paths: ['*.zip']
   workflow_dispatch:
     inputs:
-      zip_name:
-        description: ZIP filename in repository root
-        required: true
-        type: string
+      zip_path:
+        description: 'ZIP file path'
+        required: false
+        default: ''
+      build_apk:
+        description: 'Build APK after unzip'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
   actions: write
 
+concurrency:
+  group: unzip-source
+  cancel-in-progress: false
+
 jobs:
   unzip:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Extract ZIP
+      - name: Find zip
+        id: find
         env:
-          ZIP_NAME: ${{ inputs.zip_name }}
+          ZIP_IN: ${{ github.event.inputs.zip_path }}
         run: |
-          set -e
-
-          if [ ! -f "$ZIP_NAME" ]; then
-            echo "ZIP file not found: $ZIP_NAME"
-            exit 1
+          set -euo pipefail
+          Z="$ZIP_IN"
+          if [ -z "$Z" ]; then
+            Z="$(ls -1t ./*.zip 2>/dev/null | head -n1 || true)"
+            Z="${Z#./}"
           fi
-
-          mkdir -p /tmp/divriz
-
-          unzip -q "$ZIP_NAME" -d /tmp/divriz
-
-          COUNT=$(find /tmp/divriz \
-            -mindepth 1 -maxdepth 1 | wc -l)
-
-          if [ "$COUNT" -eq 1 ] && \
-             [ -d "$(find /tmp/divriz -mindepth 1 -maxdepth 1)" ]; then
-            SRC=$(find /tmp/divriz -mindepth 1 -maxdepth 1 -type d)
-          else
-            SRC=/tmp/divriz
+          if [ -z "$Z" ] || [ ! -f "$Z" ]; then
+            echo "Koi zip nahi mili."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "zip=$Z" >> "$GITHUB_OUTPUT"
 
-          if [ ! -f "$SRC/package.json" ]; then
-            echo "package.json not found in ZIP"
-            exit 1
-          fi
-
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            "$SRC/" ./
-
-          rm -f "$ZIP_NAME"
-
-      - name: Commit Project
+      - name: Unzip into repo
+        if: steps.find.outputs.found == 'true'
+        env:
+          ZIP: ${{ steps.find.outputs.zip }}
         run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          unzip -q -o "$ZIP" -d "$TMP"
+          rm -rf "$TMP/__MACOSX"
+          find "$TMP" -name '.DS_Store' -delete
+          shopt -s dotglob nullglob
+          items=("$TMP"/*)
+          if [ "${#items[@]}" -eq 1 ] && [ -d "${items[0]}" ]; then SRC="${items[0]}"; else SRC="$TMP"; fi
+          rm -rf "$SRC/.github" "$SRC/.git"
+          [ -d "$SRC/src" ] && rm -rf src
+          cp -a "$SRC"/. .
+          rm -f "$ZIP"
+          ls -la
+
+      - name: Commit and push
+        if: steps.find.outputs.found == 'true'
+        env:
+          ZIP: ${{ steps.find.outputs.zip }}
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add -A
-
-          if ! git diff --cached --quiet; then
-            git commit -m "Extract DIVRIZ AI project"
+          if git diff --cached --quiet; then
+            echo "Koi change nahi."
+          else
+            git commit -m "Unzip $ZIP [skip ci]"
             git push
           fi
 
-      - name: Trigger Web Build
+      - name: Trigger APK build
+        if: steps.find.outputs.found == 'true' && github.event.inputs.build_apk != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          gh workflow run build.yml --ref "$GITHUB_REF_NAME"
-
-      - name: Trigger APK Build
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh workflow run apk.yml --ref "$GITHUB_REF_NAME"
+          gh workflow run apk.yml --ref "$BRANCH" || echo "apk.yml abhi repo me nahi hai."
           
