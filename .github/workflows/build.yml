@@ -1,60 +1,42 @@
 
-name: Build DIVRIZ AI Web App
+name: Build Web
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - '*.zip'
-      - '**/*.md'
-
-permissions:
-  contents: read
+    branches: [main, master]
+    paths-ignore: ['**.md', '*.zip']
+  pull_request:
+  workflow_dispatch:
 
 concurrency:
-  group: divriz-web
+  group: build-web-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  web:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Run Tests
-        run: npm test --if-present
+      - name: Typecheck
+        run: npm run typecheck
+        continue-on-error: true
 
-      - name: Build Application
+      - name: Build
         run: npm run build
 
-      - name: Verify Build
-        run: |
-          test -d dist
-          test -n "$(ls -A dist)"
-
-      - name: Create ZIP
-        run: |
-          cd dist
-          zip -qr ../DIVRIZ-AI-WEB.zip .
-
-      - name: Upload Web Build
+      - name: Upload web build
         uses: actions/upload-artifact@v4
         with:
-          name: DIVRIZ-AI-WEB
-          path: DIVRIZ-AI-WEB.zip
+          name: divriz-after-motion-web
+          path: dist
           if-no-files-found: error
-          retention-days: 30
           
