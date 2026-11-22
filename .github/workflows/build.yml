@@ -1,48 +1,80 @@
 
-name: Build Web (dist)
+name: Build DIVRIZ AI Web App
 
 on:
-  push:
-    branches: [main]
-    paths-ignore: ['**.zip']
   workflow_dispatch:
 
-env:
-  NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.zip'
+      - '**/*.md'
 
 permissions:
   contents: read
 
+concurrency:
+  group: divriz-web-build
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Build Web Application
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
-      - name: Logic tests
-        run: npm test
+      - name: Run Tests
+        run: npm test --if-present
         continue-on-error: true
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Type Check
+        run: npm run typecheck --if-present
         continue-on-error: true
 
-      - name: Build web app
+      - name: Build Application
         run: npm run build
 
-      - name: Create ZIP
-        run: cd dist && zip -qr ../divriz-ai-dist.zip .
+      - name: Verify Build Output
+        run: |
+          if [ ! -d dist ]; then
+            echo "ERROR: dist folder not generated."
+            exit 1
+          fi
 
-      - uses: actions/upload-artifact@v4
+          if [ -z "$(ls -A dist)" ]; then
+            echo "ERROR: dist folder is empty."
+            exit 1
+          fi
+
+      - name: Create Distribution ZIP
+        run: |
+          cd dist
+          zip -qr ../divriz-ai-dist.zip .
+
+      - name: Upload Web Build
+        uses: actions/upload-artifact@v4
         with:
-          name: divriz-ai-dist
+          name: divriz-ai-web-build
           path: divriz-ai-dist.zip
+          if-no-files-found: error
+          retention-days: 14
           
