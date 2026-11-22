@@ -3,7 +3,6 @@ name: Build DIVRIZ AI Web App
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
@@ -15,12 +14,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: divriz-web-build
+  group: divriz-web
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build Web Application
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -32,49 +30,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Install Dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+        run: npm install --no-audit --no-fund
 
       - name: Run Tests
         run: npm test --if-present
-        continue-on-error: true
-
-      - name: Type Check
-        run: npm run typecheck --if-present
-        continue-on-error: true
 
       - name: Build Application
         run: npm run build
 
-      - name: Verify Build Output
+      - name: Verify Build
         run: |
-          if [ ! -d dist ]; then
-            echo "ERROR: dist folder not generated."
-            exit 1
-          fi
+          test -d dist
+          test -n "$(ls -A dist)"
 
-          if [ -z "$(ls -A dist)" ]; then
-            echo "ERROR: dist folder is empty."
-            exit 1
-          fi
-
-      - name: Create Distribution ZIP
+      - name: Create ZIP
         run: |
           cd dist
-          zip -qr ../divriz-ai-dist.zip .
+          zip -qr ../DIVRIZ-AI-WEB.zip .
 
       - name: Upload Web Build
         uses: actions/upload-artifact@v4
         with:
-          name: divriz-ai-web-build
-          path: divriz-ai-dist.zip
+          name: DIVRIZ-AI-WEB
+          path: DIVRIZ-AI-WEB.zip
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
           
