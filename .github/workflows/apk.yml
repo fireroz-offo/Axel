@@ -1,4 +1,3 @@
-
 name: Build APK
 
 on:
@@ -6,9 +5,9 @@ on:
   push:
     branches: [main, master]
     paths-ignore:
-      - '**.md'
-      - '*.zip'
-      - '.github/**'
+      - "**.md"
+      - "*.zip"
+      - ".github/**"
 
 concurrency:
   group: build-apk-${{ github.ref }}
@@ -41,8 +40,6 @@ jobs:
             platform-tools
             platforms;android-35
             build-tools;35.0.0
-            platforms;android-36
-            build-tools;36.0.0
 
       - name: Install Dependencies
         run: npm install --no-audit --no-fund
@@ -67,7 +64,7 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/debug/app-debug.apk \
-          out/DIVRIZ-After-Motion-v0.3-debug.apk
+            out/DIVRIZ-After-Motion-v0.3-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -75,4 +72,3 @@ jobs:
           name: DIVRIZ-After-Motion-apk
           path: out/*.apk
           if-no-files-found: error
-          
