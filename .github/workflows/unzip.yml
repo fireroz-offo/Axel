@@ -3,79 +3,127 @@ name: Unzip Uploaded Project ZIP
 
 on:
   push:
-    branches: [main]
-    paths: ['*.zip']
+    branches:
+      - main
+    paths:
+      - '*.zip'
+
   workflow_dispatch:
     inputs:
       zip_name:
-        description: 'ZIP file name in repo root'
+        description: 'ZIP filename in repository root'
         required: false
-        default: ''
+        type: string
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: unzip
+  group: unzip-main
   cancel-in-progress: false
 
 jobs:
   unzip:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Find ZIP
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Find ZIP file
         id: find
+        env:
+          INPUT_ZIP: ${{ github.event.inputs.zip_name }}
         run: |
-          Z="${{ github.event.inputs.zip_name }}"
-          if [ -z "$Z" ]; then Z=$(ls -1 *.zip 2>/dev/null | head -n1 || true); fi
+          set -e
+
+          Z="$INPUT_ZIP"
+
+          if [ -z "$Z" ]; then
+            Z=$(find . -maxdepth 1 -type f -name '*.zip' \
+              -printf '%f\n' | head -n 1)
+          fi
+
           if [ -z "$Z" ] || [ ! -f "$Z" ]; then
-            echo "No ZIP found"
+            echo "No ZIP file found."
             echo "found=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           echo "found=yes" >> "$GITHUB_OUTPUT"
           echo "zip=$Z" >> "$GITHUB_OUTPUT"
 
-      - name: Unzip and place files at repo root
+      - name: Extract project ZIP
+        if: steps.find.outputs.found == 'yes'
+        env:
+          ZIP_FILE: ${{ steps.find.outputs.zip }}
+        run: |
+          set -e
+
+          mkdir -p /tmp/divriz-unzip
+          unzip -q -o "$ZIP_FILE" -d /tmp/divriz-unzip
+
+          rm -rf /tmp/divriz-unzip/__MACOSX
+
+          COUNT=$(find /tmp/divriz-unzip \
+            -mindepth 1 -maxdepth 1 | wc -l)
+
+          if [ "$COUNT" -eq 1 ] && \
+             [ -d "$(find /tmp/divriz-unzip -mindepth 1 -maxdepth 1)" ]; then
+            SRC=$(find /tmp/divriz-unzip -mindepth 1 -maxdepth 1 -type d)
+          else
+            SRC=/tmp/divriz-unzip
+          fi
+
+          if [ ! -f "$SRC/package.json" ]; then
+            echo "ERROR: package.json missing in ZIP."
+            exit 1
+          fi
+
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='*.zip' \
+            "$SRC/" ./
+
+          rm -f "$ZIP_FILE"
+
+      - name: Commit extracted project
         if: steps.find.outputs.found == 'yes'
         run: |
           set -e
-          Z="${{ steps.find.outputs.zip }}"
-          rm -rf /tmp/unz && mkdir /tmp/unz
-          unzip -q -o "$Z" -d /tmp/unz
-          rm -rf /tmp/unz/__MACOSX
-          COUNT=$(ls -A /tmp/unz | wc -l)
-          if [ "$COUNT" -eq 1 ] && [ -d "/tmp/unz/$(ls -A /tmp/unz)" ]; then
-            SRC="/tmp/unz/$(ls -A /tmp/unz)"
-          else
-            SRC=/tmp/unz
-          fi
-          test -f "$SRC/package.json" || {
-            echo "package.json not found"
-            exit 1
-          }
-          rm -rf src public docs tests native scripts
-          rsync -a --exclude='.git' --exclude='.github' "$SRC"/ ./
-          rm -f "$Z"
 
-      - name: Commit changes
-        if: steps.find.outputs.found == 'yes'
-        run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet && exit 0
-          git commit -m "Unzip project ZIP (auto)"
-          git push
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Trigger build and APK
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Extract DIVRIZ AI project"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+
+      - name: Trigger Web Build
         if: steps.find.outputs.found == 'yes'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run build.yml --ref "${{ github.ref_name }}"
-          gh workflow run apk.yml --ref "${{ github.ref_
-          name }}"
+          gh workflow run build.yml --ref "$GITHUB_REF_NAME"
+
+      - name: Trigger APK Build
+        if: steps.find.outputs.found == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run apk.yml --ref "$GITHUB_REF_NAME"
+
+      - name: Complete
+        run: echo "DIVRIZ AI ZIP extraction workflow completed."
+        
