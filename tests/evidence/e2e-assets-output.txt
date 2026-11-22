@@ -1,0 +1,29 @@
+{
+ "frames": 144,
+ "ms": 2647,
+ "streaming": true,
+ "opfs": true,
+ "videoBps": 1760000,
+ "capped": false,
+ "failed": [],
+ "vChunks": 144,
+ "vBytes": 675136,
+ "last": 1,
+ "budget": {
+  "tenMinBalanced": {
+   "videoBps": 1104000,
+   "estMB": 90,
+   "capped": true
+  },
+  "tenMinHigh60": {
+   "videoBps": 2304000,
+   "estMB": 180,
+   "capped": true
+  },
+  "oneHourHigh": {
+   "videoBps": 304000,
+   "estMB": 180,
+   "capped": true
+  }
+ }
+}
