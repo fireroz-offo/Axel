@@ -1,9 +1,6 @@
 
 name: Build Web (dist)
 
-# Sirf web build + downloadable dist ZIP.
-# GitHub Pages ki zarurat nahi.
-
 on:
   push:
     branches: [main]
@@ -19,26 +16,33 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - run: npm install --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
 
-      - name: Type check (informational)
+      - name: Logic tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Type check
         run: npm run typecheck
         continue-on-error: true
 
-      - run: npm run build
+      - name: Build web app
+        run: npm run build
 
-      - run: cd dist && zip -qr ../divriz-ai-dist.zip .
+      - name: Create ZIP
+        run: cd dist && zip -qr ../divriz-ai-dist.zip .
 
       - uses: actions/upload-artifact@v4
         with:
           name: divriz-ai-dist
-          path: divriz
-          -ai-dist.zip
+          path: divriz-ai-dist.zip
+          
